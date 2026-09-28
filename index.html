@@ -157,6 +157,14 @@
 		.badge.warning { color: var(--warning); background: #403724; }
 		.badge.danger { color: var(--danger); background: #422d2b; }
 		.maintenance-copy { margin: 0 0 5px; color: var(--ink); font-size: 15px; line-height: 1.55; }
+		.maintenance-target { padding: 11px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; border: 1px solid #465249; border-radius: 5px; background: #171e1b; }
+		.maintenance-target-label { color: var(--muted); font-size: 12px; }
+		.maintenance-target-value { color: var(--good); font: 800 21px/1.25 var(--display); text-align: right; }
+		.maintenance-target-detail { grid-column: 1 / -1; color: var(--quiet); font: 11px/1.45 var(--mono); }
+		#maintenance-card.warning .maintenance-target { border-color: #74623b; background: #302a1f; }
+		#maintenance-card.warning .maintenance-target-value { color: var(--warning); }
+		#maintenance-card.danger .maintenance-target { border-color: #764943; background: #352522; }
+		#maintenance-card.danger .maintenance-target-value { color: #f0a49b; }
 		.maintenance-guidance { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 		#maintenance-card.warning .maintenance-name, #maintenance-card.danger .maintenance-name { animation: alert-pulse 1.1s ease-in-out infinite; }
 		#maintenance-card.warning .maintenance-copy, #maintenance-card.danger .maintenance-copy,
@@ -422,9 +430,11 @@
 				: data.remaining === 0 ? `ATENCIÓN: llegó al intervalo. Programa la revisión de ${component}.`
 					: data.remaining <= data.interval * .2 ? `PRÓXIMO: quedan ${numberFormat(data.remaining)} km. Planifica la revisión de ${component}.`
 						: `AL DÍA: sin riesgo inmediato. Revisión de ${component} en ${numberFormat(data.remaining)} km.`;
+			const targetLabel = data.remaining < 0 ? 'Debió hacerse a los' : data.remaining === 0 ? 'Realizar ahora · odómetro actual' : 'Próximo mantenimiento a los';
+			const targetValue = data.remaining === 0 ? `${numberFormat(vehicle.kilometraje)} km` : `${numberFormat(data.dueAt)} km`;
 			byId('maintenance-card').className = `maintenance ${statusClass}`;
 			byId('maintenance-card').setAttribute('role', statusClass ? 'alert' : 'status');
-			byId('maintenance-card').innerHTML = `<div class="maintenance-top"><h3 class="maintenance-name">${title}</h3><span class="badge ${statusClass}">${label}</span></div><p class="maintenance-copy">${escapeHtml(maintenanceDescription(vehicle))}</p><p class="maintenance-guidance">${guidance}</p><div class="progress-track"><div class="progress-fill ${statusClass}" style="width:${ratio}%"></div></div><div class="progress-labels"><span>${numberFormat(data.elapsed)} km desde el último servicio</span><span>Intervalo: ${numberFormat(data.interval)} km</span></div>`;
+			byId('maintenance-card').innerHTML = `<div class="maintenance-top"><h3 class="maintenance-name">${title}</h3><span class="badge ${statusClass}">${label}</span></div><p class="maintenance-copy">${escapeHtml(maintenanceDescription(vehicle))}</p><div class="maintenance-target"><span class="maintenance-target-label">${targetLabel}</span><strong class="maintenance-target-value">${targetValue}</strong><span class="maintenance-target-detail">Último servicio: ${numberFormat(vehicle.kilometrajeUltimoMantenimiento)} km · Intervalo: ${numberFormat(data.interval)} km · Actual: ${numberFormat(vehicle.kilometraje)} km</span></div><p class="maintenance-guidance">${guidance}</p><div class="progress-track"><div class="progress-fill ${statusClass}" style="width:${ratio}%"></div></div><div class="progress-labels"><span>${numberFormat(data.elapsed)} km desde el último servicio</span><span>Intervalo: ${numberFormat(data.interval)} km</span></div>`;
 		}
 		function render() {
 			const vehicle = activeVehicle();
