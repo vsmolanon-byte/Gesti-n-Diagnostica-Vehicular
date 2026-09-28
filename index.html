@@ -175,6 +175,7 @@
 		.progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .45s ease; }
 		.progress-fill.warning { background: var(--warning); }
 		.progress-fill.danger { background: var(--danger); }
+		.progress-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 11px; font-weight: 600; }
 		.progress-labels { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; color: var(--quiet); font: 10px var(--mono); }
 		.docs-list { display: grid; }
 		.doc-row { min-width: 0; padding: 15px 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(145px, .8fr); align-items: center; gap: 9px 16px; border-bottom: 1px solid #303a35; border-left: 4px solid transparent; }
@@ -185,6 +186,11 @@
 		.doc-date { display: block; margin-top: 5px; color: var(--muted); font: 12px/1.45 var(--mono); overflow-wrap: anywhere; }
 		.doc-status { display: grid; justify-items: start; gap: 5px; min-width: 0; }
 		.doc-guidance { color: var(--muted); font-size: 13px; line-height: 1.45; }
+		.doc-progress { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 3px; }
+		.doc-progress-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 11px; }
+		.doc-progress-heading span:last-child { color: var(--quiet); }
+		.doc-row.warning .doc-progress-heading span:last-child { color: var(--warning); font-weight: 700; }
+		.doc-row.danger .doc-progress-heading span:last-child { color: #f0b0a8; font-weight: 700; }
 		.doc-row.danger .doc-guidance, .doc-row.danger .badge { color: #f0b0a8; font-weight: 700; animation: alert-pulse .9s ease-in-out infinite; }
 		.doc-row.warning .doc-guidance { color: var(--warning); font-weight: 600; }
 		.doc-row .badge { font-size: 13px; line-height: 1.4; font-weight: 700; padding: 7px 10px; white-space: normal; overflow-wrap: anywhere; }
@@ -399,15 +405,26 @@
 			if (days <= 30) return { label: `Vence en ${days} d`, className: 'warning', days };
 			return { label: `Vigente · ${days} d`, className: 'good', days };
 		}
+		function documentProgress(status) {
+			const noticeDays = 30;
+			const elapsedDays = status.days < 0 ? noticeDays : Math.max(0, noticeDays - Math.min(noticeDays, status.days));
+			const percent = elapsedDays / noticeDays * 100;
+			const label = status.days < 0 ? `Venció hace ${Math.abs(status.days)} días`
+				: status.days === 0 ? 'Vence hoy'
+					: status.days > noticeDays ? `El aviso inicia en ${status.days - noticeDays} días`
+						: `${elapsedDays} de ${noticeDays} días`;
+			return { noticeDays, elapsedDays, percent, label };
+		}
 		function renderDocuments(targetId) {
 			const vehicle = activeVehicle();
 			if (!vehicle) { byId(targetId).innerHTML = ''; return []; }
 			const html = vehicle.documents.length ? vehicle.documents.map((document) => {
 				const status = documentStatus(document);
+				const progress = documentProgress(status);
 				const guidance = status.days < 0 ? `Riesgo: venció hace ${Math.abs(status.days)} días. Actualízalo cuanto antes.`
 					: status.days <= 30 ? `Atención: vence en ${status.days} días. Revisa su renovación.`
 						: `Vigente por ${status.days} días.`;
-				return `<div class="doc-row ${status.className}" ${status.className === 'danger' ? 'role="alert"' : 'role="status"'}><div class="doc-main"><span class="doc-name">${escapeHtml(document.tipo)}</span><span class="doc-date">Fecha de vencimiento: ${escapeHtml(document.fechaVencimiento)}</span></div><div class="doc-status"><span class="badge ${status.className}">${escapeHtml(status.label)}</span><span class="doc-guidance">${escapeHtml(guidance)}</span></div></div>`;
+				return `<div class="doc-row ${status.className}" ${status.className === 'danger' ? 'role="alert"' : 'role="status"'}><div class="doc-main"><span class="doc-name">${escapeHtml(document.tipo)}</span><span class="doc-date">Fecha de vencimiento: ${escapeHtml(document.fechaVencimiento)}</span></div><div class="doc-status"><span class="badge ${status.className}">${escapeHtml(status.label)}</span><span class="doc-guidance">${escapeHtml(guidance)}</span></div><div class="doc-progress"><div class="doc-progress-heading"><span>Avance por días · ventana de aviso: ${progress.noticeDays} días</span><span>${escapeHtml(progress.label)}</span></div><div class="progress-track" role="progressbar" aria-label="Avance del aviso para ${escapeHtml(document.tipo)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress.percent)}"><div class="progress-fill ${status.className}" style="width:${progress.percent}%"></div></div></div></div>`;
 			}).join('') : '<div class="fleet-empty">Todavía no hay documentos. Pulsa + para agregar uno.</div>';
 			byId(targetId).innerHTML = html;
 			return vehicle.documents.map(documentStatus);
@@ -434,7 +451,7 @@
 			const targetValue = data.remaining === 0 ? `${numberFormat(vehicle.kilometraje)} km` : `${numberFormat(data.dueAt)} km`;
 			byId('maintenance-card').className = `maintenance ${statusClass}`;
 			byId('maintenance-card').setAttribute('role', statusClass ? 'alert' : 'status');
-			byId('maintenance-card').innerHTML = `<div class="maintenance-top"><h3 class="maintenance-name">${title}</h3><span class="badge ${statusClass}">${label}</span></div><p class="maintenance-copy">${escapeHtml(maintenanceDescription(vehicle))}</p><div class="maintenance-target"><span class="maintenance-target-label">${targetLabel}</span><strong class="maintenance-target-value">${targetValue}</strong><span class="maintenance-target-detail">Último servicio: ${numberFormat(vehicle.kilometrajeUltimoMantenimiento)} km · Intervalo: ${numberFormat(data.interval)} km · Actual: ${numberFormat(vehicle.kilometraje)} km</span></div><p class="maintenance-guidance">${guidance}</p><div class="progress-track"><div class="progress-fill ${statusClass}" style="width:${ratio}%"></div></div><div class="progress-labels"><span>${numberFormat(data.elapsed)} km desde el último servicio</span><span>Intervalo: ${numberFormat(data.interval)} km</span></div>`;
+			byId('maintenance-card').innerHTML = `<div class="maintenance-top"><h3 class="maintenance-name">${title}</h3><span class="badge ${statusClass}">${label}</span></div><p class="maintenance-copy">${escapeHtml(maintenanceDescription(vehicle))}</p><div class="maintenance-target"><span class="maintenance-target-label">${targetLabel}</span><strong class="maintenance-target-value">${targetValue}</strong><span class="maintenance-target-detail">Último servicio: ${numberFormat(vehicle.kilometrajeUltimoMantenimiento)} km · Intervalo: ${numberFormat(data.interval)} km · Actual: ${numberFormat(vehicle.kilometraje)} km</span></div><p class="maintenance-guidance">${guidance}</p><div class="progress-heading"><span>Avance por kilometraje</span><span>${numberFormat(data.elapsed)} de ${numberFormat(data.interval)} km</span></div><div class="progress-track" role="progressbar" aria-label="Avance hacia el próximo mantenimiento por kilometraje" aria-valuemin="0" aria-valuemax="${data.interval}" aria-valuenow="${Math.min(data.interval, data.elapsed)}"><div class="progress-fill ${statusClass}" style="width:${ratio}%"></div></div><div class="progress-labels"><span>Último servicio: ${numberFormat(vehicle.kilometrajeUltimoMantenimiento)} km</span><span>Objetivo: ${numberFormat(data.dueAt)} km</span></div>`;
 		}
 		function render() {
 			const vehicle = activeVehicle();
