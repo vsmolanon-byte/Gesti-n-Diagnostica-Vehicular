@@ -358,8 +358,8 @@
 		const initialState = {
 			selectedId: 'vehicle-car',
 			vehicles: [
-				{ id: 'vehicle-car', type: 'Automóvil', placa: 'ABC123', marca: 'Toyota', anio: 2020, kilometraje: 45000, kilometrajeUltimoMantenimiento: 40000, documents: [{ id: 'doc-car-soat', tipo: 'SOAT', fechaVencimiento: isoAfterDays(20) }, { id: 'doc-car-review', tipo: 'Revisión técnico-mecánica', fechaVencimiento: isoAfterDays(45) }] },
-				{ id: 'vehicle-moto', type: 'Motocicleta', placa: 'XYZ89F', marca: 'Yamaha', anio: 2022, kilometraje: 8000, motorCuatroTiempos: true, kilometrajeUltimoMantenimiento: 6500, documents: [{ id: 'doc-moto-soat', tipo: 'SOAT', fechaVencimiento: isoAfterDays(15) }, { id: 'doc-moto-review', tipo: 'Revisión técnico-mecánica', fechaVencimiento: isoAfterDays(30) }] }
+				{ id: 'vehicle-car', type: 'Automóvil', placa: 'ABC123', marca: 'Toyota', anio: 2020, kilometraje: 45000, kilometrajeUltimoMantenimiento: 40000, documents: [{ id: 'doc-car-soat', tipo: 'SOAT', fechaVencimiento: isoAfterDays(20) }, { id: 'doc-car-review', tipo: 'Revisión técnico-mecánica', fechaVencimiento: isoAfterDays(45) }, { id: 'doc-car-tax', tipo: 'Impuesto anual', fechaVencimiento: '' }] },
+				{ id: 'vehicle-moto', type: 'Motocicleta', placa: 'XYZ89F', marca: 'Yamaha', anio: 2022, kilometraje: 8000, motorCuatroTiempos: true, kilometrajeUltimoMantenimiento: 6500, documents: [{ id: 'doc-moto-soat', tipo: 'SOAT', fechaVencimiento: isoAfterDays(15) }, { id: 'doc-moto-review', tipo: 'Revisión técnico-mecánica', fechaVencimiento: isoAfterDays(30) }, { id: 'doc-moto-tax', tipo: 'Impuesto anual', fechaVencimiento: '' }] }
 			]
 		};
 		function loadState() {
@@ -379,6 +379,11 @@
 		}
 		let state = loadState();
 		state.vehicles = (state.vehicles || []).map((vehicle, index) => ({ ...vehicle, id: vehicle.id || `vehicle-${index}`, documents: vehicle.documents || [] }));
+		state.vehicles.forEach((vehicle) => {
+			if (!vehicle.documents.some((document) => document.tipo.trim().toLocaleLowerCase() === 'impuesto anual')) {
+				vehicle.documents.push({ id: `doc-tax-${vehicle.id}`, tipo: 'Impuesto anual', fechaVencimiento: '' });
+			}
+		});
 		if (!state.vehicles.some((vehicle) => vehicle.id === state.selectedId)) state.selectedId = state.vehicles[0]?.id;
 		state.filter ||= 'all';
 		let toastTimer;
@@ -400,6 +405,7 @@
 			clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
 		}
 		function documentStatus(document) {
+			if (!document.fechaVencimiento) return { label: 'Fecha pendiente', className: 'pending', days: null };
 			const days = daysUntil(document.fechaVencimiento);
 			if (days < 0) return { label: `Vencido hace ${Math.abs(days)} d`, className: 'danger', days };
 			if (days <= 30) return { label: `Vence en ${days} d`, className: 'warning', days };
@@ -407,6 +413,7 @@
 		}
 		function documentProgress(status) {
 			const noticeDays = 30;
+			if (status.days === null) return { noticeDays, elapsedDays: 0, percent: 0, label: 'Agrega la fecha de vencimiento' };
 			const elapsedDays = status.days < 0 ? noticeDays : Math.max(0, noticeDays - Math.min(noticeDays, status.days));
 			const percent = elapsedDays / noticeDays * 100;
 			const label = status.days < 0 ? `Venció hace ${Math.abs(status.days)} días`
@@ -421,10 +428,12 @@
 			const html = vehicle.documents.length ? vehicle.documents.map((document) => {
 				const status = documentStatus(document);
 				const progress = documentProgress(status);
-				const guidance = status.days < 0 ? `Riesgo: venció hace ${Math.abs(status.days)} días. Actualízalo cuanto antes.`
+				const guidance = status.days === null ? 'Registra la fecha límite para activar los avisos.'
+					: status.days < 0 ? `Riesgo: venció hace ${Math.abs(status.days)} días. Actualízalo cuanto antes.`
 					: status.days <= 30 ? `Atención: vence en ${status.days} días. Revisa su renovación.`
 						: `Vigente por ${status.days} días.`;
-				return `<div class="doc-row ${status.className}" ${status.className === 'danger' ? 'role="alert"' : 'role="status"'}><div class="doc-main"><span class="doc-name">${escapeHtml(document.tipo)}</span><span class="doc-date">Fecha de vencimiento: ${escapeHtml(document.fechaVencimiento)}</span></div><div class="doc-status"><span class="badge ${status.className}">${escapeHtml(status.label)}</span><span class="doc-guidance">${escapeHtml(guidance)}</span></div><div class="doc-progress"><div class="doc-progress-heading"><span>Avance por días · ventana de aviso: ${progress.noticeDays} días</span><span>${escapeHtml(progress.label)}</span></div><div class="progress-track" role="progressbar" aria-label="Avance del aviso para ${escapeHtml(document.tipo)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress.percent)}"><div class="progress-fill ${status.className}" style="width:${progress.percent}%"></div></div></div></div>`;
+				const dueDate = document.fechaVencimiento || 'Pendiente de registro';
+				return `<div class="doc-row ${status.className}" ${status.className === 'danger' ? 'role="alert"' : 'role="status"'}><div class="doc-main"><span class="doc-name">${escapeHtml(document.tipo)}</span><span class="doc-date">Fecha de vencimiento: ${escapeHtml(dueDate)}</span></div><div class="doc-status"><span class="badge ${status.className}">${escapeHtml(status.label)}</span><span class="doc-guidance">${escapeHtml(guidance)}</span></div><div class="doc-progress"><div class="doc-progress-heading"><span>Avance por días · ventana de aviso: ${progress.noticeDays} días</span><span>${escapeHtml(progress.label)}</span></div><div class="progress-track" role="progressbar" aria-label="Avance del aviso para ${escapeHtml(document.tipo)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress.percent)}"><div class="progress-fill ${status.className}" style="width:${progress.percent}%"></div></div></div></div>`;
 			}).join('') : '<div class="fleet-empty">Todavía no hay documentos. Pulsa + para agregar uno.</div>';
 			byId(targetId).innerHTML = html;
 			return vehicle.documents.map(documentStatus);
@@ -526,7 +535,7 @@
 			byId('doc-dialog').hidden = false;
 			byId('document-editor-list').querySelector('select')?.focus();
 		}
-		const DOCUMENT_TYPES = ['SOAT', 'Revisión técnico-mecánica', 'Licencia de tránsito', 'Seguro todo riesgo', 'Otro tipo'];
+		const DOCUMENT_TYPES = ['SOAT', 'Revisión técnico-mecánica', 'Impuesto anual', 'Licencia de tránsito', 'Seguro todo riesgo', 'Otro tipo'];
 		function addDocumentRow(documentData = {}) {
 			const custom = documentData.tipo && !DOCUMENT_TYPES.includes(documentData.tipo);
 			const row = document.createElement('div'); row.className = 'document-editor-row';
@@ -562,7 +571,8 @@
 		}
 		function createVehicle(event) {
 			event.preventDefault(); const form = new FormData(event.currentTarget); const type = String(form.get('type'));
-			const vehicle = { id: `vehicle-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type, placa: String(form.get('plate')).trim().toUpperCase(), marca: String(form.get('brand')).trim(), anio: Number(form.get('year')), kilometraje: Number(form.get('mileage')), kilometrajeUltimoMantenimiento: Number(form.get('last-service')), documents: [] };
+			const vehicleId = `vehicle-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+			const vehicle = { id: vehicleId, type, placa: String(form.get('plate')).trim().toUpperCase(), marca: String(form.get('brand')).trim(), anio: Number(form.get('year')), kilometraje: Number(form.get('mileage')), kilometrajeUltimoMantenimiento: Number(form.get('last-service')), documents: [{ id: `doc-tax-${vehicleId}`, tipo: 'Impuesto anual', fechaVencimiento: '' }] };
 			if (type === 'Motocicleta') vehicle.motorCuatroTiempos = form.get('engine') === 'true';
 			try {
 				validateVehicle(vehicle);
